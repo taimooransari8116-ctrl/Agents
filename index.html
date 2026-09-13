@@ -455,15 +455,17 @@
   document.getElementById("otpCloseBtn").addEventListener("click", closeAuth);
 
   function getConvId() {
-    let id = localStorage.getItem("currentConversationId");
+    const key = "zorvex_conv_" + (currentUser?.id || "anon");
+    let id = localStorage.getItem(key);
     if (!id) {
       id = crypto.randomUUID();
-      localStorage.setItem("currentConversationId", id);
+      localStorage.setItem(key, id);
     }
     return id;
   }
   function setConvId(id) {
-    localStorage.setItem("currentConversationId", id);
+    const key = "zorvex_conv_" + (currentUser?.id || "anon");
+    localStorage.setItem(key, id);
     currentConvId = id;
   }
 
@@ -514,6 +516,12 @@
     try {
       const res = await authedFetch(FUNCTION_URL + "?conversation_id=" + encodeURIComponent(convId));
       const data = await res.json();
+      if (res.status === 403 && data.step === "auth") {
+        const freshId = crypto.randomUUID();
+        setConvId(freshId);
+        showEmptyLog();
+        return;
+      }
       const hist = data.history ?? [];
       if (hist.length === 0) {
         showEmptyLog();
@@ -580,6 +588,32 @@
     location.reload();
   });
 
+  async function sendChatMessage(message, isRetry) {
+    const res = await authedFetch(FUNCTION_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message, conversation_id: currentConvId }),
+    });
+
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return { kind: "nonjson", status: res.status, raw };
+    }
+
+    if (res.status === 403 && data.step === "auth" && !isRetry) {
+      setConvId(crypto.randomUUID());
+      return sendChatMessage(message, true);
+     }
+
+    if (!res.ok || data.error) {
+      return { kind: "error", status: res.status, data };
+    }
+    return { kind: "ok", data };
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const message = input.value.trim();
@@ -596,28 +630,15 @@
     const pending = addMsg("thinking…", "pending");
 
     try {
-      const res = await authedFetch(FUNCTION_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: currentConvId }),
-      });
-
-      const raw = await res.text();
+      const result = await sendChatMessage(message, false);
       pending.remove();
 
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        addMsg("Response wasn't JSON (status " + res.status + "):\n" + raw,"error");
-        sendBtn.disabled = false;
-        return;
-      }
-
-      if (!res.ok || data.error) {
-        addMsg("HTTP " + res.status + "\n" + JSON.stringify(data, null, 2), "error");
+      if (result.kind === "nonjson") {
+        addMsg("Response wasn't JSON (status " + result.status + "):\n" + result.raw, "error");
+      } else if (result.kind === "error") {
+        addMsg("HTTP " + result.status + "\n" + JSON.stringify(result.data, null, 2), "error");
       } else {
-        addMsg(data.reply ?? JSON.stringify(data, null, 2), "assistant");
+        addMsg(result.data.reply ?? JSON.stringify(result.data, null, 2), "assistant");
       }
     } catch (err) {
       pending.remove();
@@ -652,6 +673,9 @@
 
     if (error) {
       authMsg.textContent = error.message;
+      if (authMode === "signin" && /invalid login credentials/i.test(error.message)) {
+        authMsg.textContent += " — new here? Tap \"Sign up\" below.";
+      }
       return;
     }
     if (authMode === "signup" && !data.session) {
