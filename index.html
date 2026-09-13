@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZORVEX</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   html, body {
@@ -20,6 +21,7 @@
     position: relative;
     overflow: hidden;
   }
+  .hidden { display: none !important; }
   header {
     display: flex;
     align-items: center;
@@ -103,7 +105,7 @@
     color: #9a9aa2;
     font-style: italic;
   }
-  form {
+  form#chatForm {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -113,7 +115,7 @@
     border-radius: 26px;
     flex-shrink: 0;
   }
-  input {
+  form#chatForm input {
     flex: 1;
     background: transparent;
     border: none;
@@ -123,7 +125,7 @@
     color: #1a1a1a;
     font-family: inherit;
   }
-  input::placeholder { color: #9a9aa2; }
+  form#chatForm input::placeholder { color: #9a9aa2; }
   button.send {
     width: 34px;
     height: 34px;
@@ -153,7 +155,7 @@
     flex-direction: column;
   }
   #sidebar.open { transform: translateX(0); }
-  #sidebar header { border-bottom: 1px solid #eee; }
+  #sidebar > header { border-bottom: 1px solid #eee; flex-shrink: 0; }
   .new-chat-row {
     display: flex;
     align-items: center;
@@ -163,6 +165,7 @@
     font-weight: 500;
     color: #1a1a1a;
     cursor: pointer;
+    flex-shrink: 0;
   }
   .new-chat-row svg { flex-shrink: 0; }
   #convList {
@@ -187,28 +190,139 @@
     color: #9a9aa2;
     font-size: 13px;
   }
+  #sidebarFooter {
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
+    padding: 6px 0;
+  }
+  .footer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #userEmailRow { color: #6b6b73; cursor: default; }
+  #signOutBtn { color: #b3453a; }
+  #signOutBtn.hidden-row { display: none; }
+
+  /* auth overlay */
+  #authOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: #fff;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  #authHero {
+    background: linear-gradient(135deg, #6c7bf0 0%, #8f6ff0 100%);
+    padding: 44px 24px 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #fff;
+    flex-shrink: 0;
+    position: relative;
+  }
+  #authCloseBtn {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  #authHero svg.mark { margin-bottom: 14px; }
+  #authHero h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+  #authHero p { margin: 0; font-size: 14px; opacity: 0.9; max-width: 260px; }
+  #authCard, #otpCard {
+    background: #fff;
+    margin: -22px 16px 24px;
+    border-radius: 20px;
+    padding: 26px 22px 24px;
+    box-shadow: 0 10px 40px -10px rgba(90, 80, 180, 0.25);
+    position: relative;
+    z-index: 2;
+  }
+  #otpCard h2 { font-size: 17px; margin: 0 0 4px; }
+  #otpCard .sub { color: #6b6b73; font-size: 13.5px; margin: 0 0 16px; }
+  #authForm, #otpForm {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #authForm input, #otpForm input {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e2e5;
+    background: #f9f9fa;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+  }
+  #authForm input:focus, #otpForm input:focus { border-color: #6c7bf0; }
+  #authSubmit, .primary-btn {
+    background: linear-gradient(135deg, #6c7bf0, #8f6ff0);
+    color: #fff;
+    border: none;
+    padding: 13px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  #authSubmit:disabled, .primary-btn:disabled { opacity: 0.5; }
+  #authToggle, #forgotBtn, #backToSignIn {
+    background: none;
+    border: none;
+    color: #6b6b73;
+    font-size: 13.5px;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-top: 12px;
+    align-self: center;
+    display: block;
+  }
+  .auth-msg { font-size: 13px; color: #b3453a; text-align: center; min-height: 16px; margin-top: 8px; }
+  .auth-msg.ok { color: #1a7a3a; }
 </style>
 </head>
 <body>
 
-<header>
-  <button class="icon-btn" id="menuBtn" aria-label="Menu">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
-  </button>
-  <span class="title">ZORVEX</span>
-  <button class="icon-btn" id="newBtn" aria-label="New chat">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-  </button>
-</header>
+<div id="appScreen" style="display:flex; flex:1; flex-direction:column; min-height:0;">
+  <header>
+    <button class="icon-btn" id="menuBtn" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+    <span class="title">ZORVEX</span>
+    <button class="icon-btn" id="newBtn" aria-label="New chat">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+  </header>
 
-<div id="log"></div>
+  <div id="log"></div>
 
-<form id="form">
-  <input id="input" type="text" placeholder="Give ZORVEX a problem to solve.." autocomplete="off" />
-  <button type="submit" class="send" id="send" aria-label="Send">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-  </button>
-</form>
+  <form id="chatForm">
+    <input id="input" type="text" placeholder="Give ZORVEX a problem to solve.." autocomplete="off" />
+    <button type="submit" class="send" id="send" aria-label="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+    </button>
+  </form>
+</div>
 
 <div id="sidebar">
   <header>
@@ -223,16 +337,122 @@
     New chat
   </div>
   <div id="convList"></div>
+  <div id="sidebarFooter">
+    <div class="footer-row" id="userEmailRow"></div>
+    <div class="footer-row" id="settingsRow">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </div>
+    <div class="footer-row" id="signOutBtn" style="display:none;">Sign out</div>
+  </div>
+</div>
+
+<div id="authOverlay" class="hidden">
+  <div id="signInView">
+    <div id="authHero">
+      <button id="authCloseBtn" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <svg class="mark" width="64" height="64" viewBox="0 0 100 100" fill="none">
+        <circle cx="50" cy="50" r="48" fill="rgba(255,255,255,0.15)"/>
+        <circle cx="50" cy="38" r="16" fill="#fff"/>
+        <path d="M22 82c0-15.5 12.5-28 28-28s28 12.5 28 28" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+      </svg>
+      <h1>Sign in to ZORVEX</h1>
+      <p id="authSub">Sign in to start chatting and save your conversations.</p>
+    </div>
+    <div id="authCard">
+      <form id="authForm">
+        <input id="authEmail" type="email" placeholder="Email" autocomplete="email" required />
+        <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" required />
+        <button type="submit" id="authSubmit">Sign in</button>
+      </form>
+      <div id="authMsg" class="auth-msg"></div>
+      <button id="forgotBtn">Forgot password?</button>
+      <button id="authToggle">Don't have an account? Sign up</button>
+    </div>
+  </div>
+
+  <div id="otpView" class="hidden">
+    <div id="authHero">
+      <button id="otpCloseBtn" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <svg class="mark" width="64" height="64" viewBox="0 0 100 100" fill="none">
+        <circle cx="50" cy="50" r="48" fill="rgba(255,255,255,0.15)"/>
+        <circle cx="50" cy="38" r="16" fill="#fff"/>
+        <path d="M22 82c0-15.5 12.5-28 28-28s28 12.5 28 28" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+      </svg>
+      <h1>Reset password</h1>
+      <p>We'll email you a one-time code.</p>
+    </div>
+    <div id="otpCard">
+      <div id="otpStep1">
+        <h2>Enter your email</h2>
+        <p class="sub">We'll send a one-time code to sign you in.</p>
+        <form id="otpEmailForm">
+          <input id="otpEmail" type="email" placeholder="Email" autocomplete="email" required />
+          <button type="submit" class="primary-btn" id="getOtpBtn">Get OTP</button>
+        </form>
+      </div>
+      <div id="otpStep2" class="hidden">
+        <h2>Enter the code</h2>
+        <p class="sub">Check your email for the 6-digit code, and set a new password.</p>
+        <form id="otpVerifyForm">
+          <input id="otpCode" type="text" inputmode="numeric" placeholder="6-digit code" required />
+          <input id="newPassword" type="password" placeholder="New password" required minlength="6" />
+          <button type="submit" class="primary-btn" id="verifyOtpBtn">Verify &amp; sign in</button>
+        </form>
+      </div>
+      <div id="otpMsg" class="auth-msg"></div>
+      <button id="backToSignIn">Back to sign in</button>
+    </div>
+  </div>
 </div>
 
 <script>
   const FUNCTION_URL = "https://kidjcwvlchipzyttekpe.supabase.co/functions/v1/smooth-handler";
+  const SUPABASE_URL = "https://kidjcwvlchipzyttekpe.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_7Qsf-tI8kYxLrB1XV0AHfg_mKZZ9xwq";
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const authOverlay = document.getElementById("authOverlay");
+  const signInView = document.getElementById("signInView");
+  const otpView = document.getElementById("otpView");
+  const authForm = document.getElementById("authForm");
+  const authSubmit = document.getElementById("authSubmit");
+  const authToggle = document.getElementById("authToggle");
+  const authMsg = document.getElementById("authMsg");
+  const authSub = document.getElementById("authSub");
+  const forgotBtn = document.getElementById("forgotBtn");
+  let authMode = "signin";
+
   const log = document.getElementById("log");
-  const form = document.getElementById("form");
+  const form = document.getElementById("chatForm");
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("send");
   const sidebar = document.getElementById("sidebar");
   const convList = document.getElementById("convList");
+  const userEmailRow = document.getElementById("userEmailRow");
+  const settingsRow = document.getElementById("settingsRow");
+  const signOutBtn = document.getElementById("signOutBtn");
+
+  let currentConvId = null;
+  let accessToken = null;
+  let currentUser = null;
+
+  function openAuth(message) {
+    authMsg.textContent = "";
+    signInView.classList.remove("hidden");
+    otpView.classList.add("hidden");
+    if (message) authSub.textContent = message;
+    authOverlay.classList.remove("hidden");
+  }
+  function closeAuth() {
+    authOverlay.classList.add("hidden");
+  }
+  document.getElementById("authCloseBtn").addEventListener("click", closeAuth);
+  document.getElementById("otpCloseBtn").addEventListener("click", closeAuth);
 
   function getConvId() {
     let id = localStorage.getItem("currentConversationId");
@@ -244,6 +464,7 @@
   }
   function setConvId(id) {
     localStorage.setItem("currentConversationId", id);
+    currentConvId = id;
   }
 
   function renderMarkdown(text) {
@@ -283,10 +504,15 @@
     log.appendChild(div);
   }
 
+  async function authedFetch(urlStr, options = {}) {
+    const headers = { ...(options.headers || {}), Authorization: `Bearer ${accessToken}` };
+    return fetch(urlStr, { ...options, headers });
+  }
+
   async function loadConversation(convId) {
     log.innerHTML = "";
     try {
-      const res = await fetch(FUNCTION_URL + "?conversation_id=" + encodeURIComponent(convId));
+      const res = await authedFetch(FUNCTION_URL + "?conversation_id=" + encodeURIComponent(convId));
       const data = await res.json();
       const hist = data.history ?? [];
       if (hist.length === 0) {
@@ -302,7 +528,7 @@
   async function loadConversationList() {
     convList.innerHTML = '<div class="sidebar-empty">Loading…</div>';
     try {
-      const res = await fetch(FUNCTION_URL);
+      const res = await authedFetch(FUNCTION_URL);
       const data = await res.json();
       const convs = data.conversations ?? [];
       if (convs.length === 0) {
@@ -310,15 +536,14 @@
         return;
       }
       convList.innerHTML = "";
-      const currentId = getConvId();
       convs.forEach((c) => {
         const item = document.createElement("div");
-        item.className = "conv-item" + (c.conversation_id === currentId ? " active" : "");
+        item.className = "conv-item" + (c.conversation_id === currentConvId ? " active" : "");
         item.textContent = c.title || "Untitled";
         item.addEventListener("click", () => {
           setConvId(c.conversation_id);
           sidebar.classList.remove("open");
-          loadConversation(c.conversation_id === "legacy" ? "legacy" : c.conversation_id);
+          loadConversation(c.conversation_id);
         });
         convList.appendChild(item);
       });
@@ -328,6 +553,7 @@
   }
 
   document.getElementById("menuBtn").addEventListener("click", () => {
+    if (!currentUser) { openAuth(); return; }
     sidebar.classList.add("open");
     loadConversationList();
   });
@@ -345,11 +571,24 @@
     setConvId(newId);
     showEmptyLog();
   });
+  settingsRow.addEventListener("click", () => {
+    signOutBtn.style.display = signOutBtn.style.display === "none" ? "flex" : "none";
+  });
+  signOutBtn.addEventListener("click", async () => {
+    await supa.auth.signOut();
+    localStorage.removeItem("currentConversationId");
+    location.reload();
+  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const message = input.value.trim();
     if (!message) return;
+
+    if (!currentUser) {
+      openAuth("Sign in to start chatting with ZORVEX.");
+      return;
+    }
 
     addMsg(message, "user");
     input.value = "";
@@ -357,10 +596,10 @@
     const pending = addMsg("thinking…", "pending");
 
     try {
-      const res = await fetch(FUNCTION_URL, {
+      const res = await authedFetch(FUNCTION_URL, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: getConvId() }),
+        body: JSON.stringify({ message, conversation_id: currentConvId }),
       });
 
       const raw = await res.text();
@@ -370,7 +609,7 @@
       try {
         data = JSON.parse(raw);
       } catch {
-        addMsg("Response wasn't JSON (status " + res.status + "):\n" + raw, "error");
+        addMsg("Response wasn't JSON (status " + res.status + "):\n" + raw,"error");
         sendBtn.disabled = false;
         return;
       }
@@ -389,7 +628,124 @@
     input.focus();
   });
 
-  loadConversation(getConvId());
+  // ---- sign in / sign up ----
+  authToggle.addEventListener("click", () => {
+    authMode = authMode === "signin" ? "signup" : "signin";
+    authSubmit.textContent = authMode === "signin" ? "Sign in" : "Create account";
+    authToggle.textContent = authMode === "signin" ? "Don't have an account? Sign up" : "Already have an account? Sign in";
+    authMsg.textContent = "";
+  });
+
+  authForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("authEmail").value.trim();
+    const password = document.getElementById("authPassword").value;
+    authSubmit.disabled = true;
+    authMsg.className = "auth-msg";
+    authMsg.textContent = "";
+
+    const { data, error } = authMode === "signin"
+      ? await supa.auth.signInWithPassword({ email, password })
+      : await supa.auth.signUp({ email, password });
+
+    authSubmit.disabled = false;
+
+    if (error) {
+      authMsg.textContent = error.message;
+      return;
+    }
+    if (authMode === "signup" && !data.session) {
+      authMsg.classList.add("ok");
+      authMsg.textContent = "Check your email to confirm your account, then sign in.";
+      return;
+    }
+    onSignedIn(data.session);
+    closeAuth();
+  });
+
+  // ---- forgot password (OTP) ----
+  forgotBtn.addEventListener("click", () => {
+    signInView.classList.add("hidden");
+    otpView.classList.remove("hidden");
+    document.getElementById("otpStep1").classList.remove("hidden");
+    document.getElementById("otpStep2").classList.add("hidden");
+    document.getElementById("otpMsg").textContent = "";
+  });
+  document.getElementById("backToSignIn").addEventListener("click", () => {
+    otpView.classList.add("hidden");
+    signInView.classList.remove("hidden");
+  });
+
+  let otpEmailValue = "";
+  document.getElementById("otpEmailForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    otpEmailValue = document.getElementById("otpEmail").value.trim();
+    const btn = document.getElementById("getOtpBtn");
+    const msg = document.getElementById("otpMsg");
+    btn.disabled = true;
+    msg.className = "auth-msg";
+    msg.textContent = "";
+
+    const { error } = await supa.auth.signInWithOtp({ email: otpEmailValue, options: { shouldCreateUser: false } });
+    btn.disabled = false;
+
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+    document.getElementById("otpStep1").classList.add("hidden");
+    document.getElementById("otpStep2").classList.remove("hidden");
+    msg.classList.add("ok");
+    msg.textContent = "Code sent — check your email.";
+  });
+
+  document.getElementById("otpVerifyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("otpCode").value.trim();
+    const newPassword = document.getElementById("newPassword").value;
+    const btn = document.getElementById("verifyOtpBtn");
+    const msg = document.getElementById("otpMsg");
+    btn.disabled = true;
+    msg.className = "auth-msg";
+
+    const { data, error } = await supa.auth.verifyOtp({ email: otpEmailValue, token: code, type: "email" });
+    if (error) {
+      btn.disabled = false;
+      msg.textContent = error.message;
+      return;
+    }
+
+    const { error: pwError } = await supa.auth.updateUser({ password: newPassword });
+    btn.disabled = false;
+    if (pwError) {
+      msg.textContent = "Signed in, but couldn't set new password: " + pwError.message;
+    }
+    onSignedIn(data.session);
+    closeAuth();
+  });
+
+  function onSignedIn(session) {
+    accessToken = session.access_token;
+    currentUser = session.user;
+    userEmailRow.textContent = currentUser.email;
+    signOutBtn.style.display = "none";
+    currentConvId = getConvId();
+    loadConversation(currentConvId);
+  }
+
+  (async function init() {
+    showEmptyLog();
+    const { data } = await supa.auth.getSession();
+    if (data.session) {
+      onSignedIn(data.session);
+    }
+  })();
+
+  supa.auth.onAuthStateChange((_event, session) => {
+    if (session && !currentUser) {
+      onSignedIn(session);
+    }
+  });
 </script>
 </body>
 </html>
