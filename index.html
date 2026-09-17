@@ -595,23 +595,14 @@
       body: JSON.stringify({ message, conversation_id: currentConvId }),
     });
 
-    const raw = await res.text();
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      return { kind: "nonjson", status: res.status, raw };
-    }
-
-    if (res.status === 403 && data.step === "auth" && !isRetry) {
-      setConvId(crypto.randomUUID());
-      return sendChatMessage(message, true);
-     }
-
-    if (!res.ok || data.error) {
-      return { kind: "error", status: res.status, data };
-    }
-    return { kind: "ok", data };
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      if (res.status === 403 && data.step === "auth" && !isRetry) {
+        setConvId(crypto.randomUUID());
+        return sendChatMessage(message, true);
+      }
+     return { kind: "stream", body: res.body };
   }
 
   form.addEventListener("submit", async (e) => {
@@ -633,12 +624,23 @@
       const result = await sendChatMessage(message, false);
       pending.remove();
 
-      if (result.kind === "nonjson") {
-        addMsg("Response wasn't JSON (status " + result.status + "):\n" + result.raw, "error");
-      } else if (result.kind === "error") {
+      if (result.kind === "error") {
         addMsg("HTTP " + result.status + "\n" + JSON.stringify(result.data, null, 2), "error");
       } else {
-        addMsg(result.data.reply ?? JSON.stringify(result.data, null, 2), "assistant");
+        const div = document.createElement("div");
+        div.className = "msg assistant";
+        log.appendChild(div);
+
+        const reader = result.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullText += decoder.decode(value, { stream: true });
+          div.innerHTML = renderMarkdown(fullText);
+          log.scrollTop = log.scrollHeight;
+        }
       }
     } catch (err) {
       pending.remove();
