@@ -602,7 +602,9 @@
         setConvId(crypto.randomUUID());
         return sendChatMessage(message, true);
       }
-     return { kind: "stream", body: res.body };
+      return { kind: "error", status: res.status, data };
+    }
+    return { kind: "stream", body: res.body };
   }
 
   form.addEventListener("submit", async (e) => {
