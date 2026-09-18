@@ -336,6 +336,10 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     New chat
   </div>
+  <div class="new-chat-row" id="addKnowledgeRow">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    Add knowledge
+  </div>
   <div id="convList"></div>
   <div id="sidebarFooter">
     <div class="footer-row" id="userEmailRow"></div>
@@ -344,6 +348,23 @@
       Settings
     </div>
     <div class="footer-row" id="signOutBtn" style="display:none;">Sign out</div>
+  </div>
+</div>
+
+<div id="knowledgeOverlay" class="hidden">
+  <div id="authHero" style="padding-bottom:24px;">
+    <button id="knowledgeCloseBtn" class="icon-btn" aria-label="Close" style="position:absolute; top:14px; left:14px; background:rgba(255,255,255,0.2); color:#fff;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <h1>Add knowledge</h1>
+    <p>Paste notes, product info, or anything you want ZORVEX to remember and use when answering.</p>
+  </div>
+  <div id="otpCard">
+    <form id="knowledgeForm">
+      <textarea id="knowledgeText" rows="8" placeholder="Paste text here…" style="width:100%; padding:13px 14px; border-radius:10px; border:1px solid #e2e2e5; background:#f9f9fa; font-size:15px; font-family:inherit; resize:vertical;" required></textarea>
+      <button type="submit" class="primary-btn" id="knowledgeSubmit" style="margin-top:10px;">Save</button>
+    </form>
+    <div id="knowledgeMsg" class="auth-msg"></div>
   </div>
 </div>
 
@@ -573,6 +594,45 @@
     setConvId(newId);
     sidebar.classList.remove("open");
     showEmptyLog();
+  });
+
+  const knowledgeOverlay = document.getElementById("knowledgeOverlay");
+  document.getElementById("addKnowledgeRow").addEventListener("click", () => {
+    sidebar.classList.remove("open");
+    document.getElementById("knowledgeMsg").textContent = "";
+    knowledgeOverlay.classList.remove("hidden");
+  });
+  document.getElementById("knowledgeCloseBtn").addEventListener("click", () => {
+    knowledgeOverlay.classList.add("hidden");
+  });
+  document.getElementById("knowledgeForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = document.getElementById("knowledgeText").value.trim();
+    if (!text) return;
+    const btn = document.getElementById("knowledgeSubmit");
+    const msg = document.getElementById("knowledgeMsg");
+    btn.disabled = true;
+    msg.className = "auth-msg";
+    msg.textContent = "";
+    try {
+      const res = await authedFetch(FUNCTION_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ knowledge_text: text }),
+      });
+      const data = await res.json();
+      btn.disabled = false;
+      if (!res.ok || data.error) {
+        msg.textContent = "Couldn't save: " + JSON.stringify(data.error || data);
+        return;
+      }
+      msg.classList.add("ok");
+      msg.textContent = "Saved (" + data.chunks_added + " piece(s) added).";
+      document.getElementById("knowledgeText").value = "";
+    } catch (err) {
+      btn.disabled = false;
+      msg.textContent = "Network error: " + err.message;
+    }
   });
   document.getElementById("newBtn").addEventListener("click", () => {
     const newId = crypto.randomUUID();
